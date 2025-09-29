@@ -1,0 +1,581 @@
+import numpy as np
+import json
+import os
+import time
+from collections import deque
+import random
+from typing import Dict, List, Optional, Tuple
+
+class PokerRLBot:
+    def __init__(self):
+        self.learning_rate = 0.2      
+        self.discount_factor = 0.9
+        self.epsilon = 0.4            
+        self.epsilon_decay = 0.995
+        self.min_epsilon = 0.1
+        
+        self.q_table = {}
+        self.experience_buffer = deque(maxlen=5000)
+        self.state_visits = {}
+        
+        self.total_hands_played = 0
+        self.session_hands = 0
+        self.wins = 0
+        self.losses = 0
+        
+        # Hand evaluation
+        self.card_ranks = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, 
+                          '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
+        
+        self.hand_strength_cache = {}
+        
+        # Load existing knowledge
+        self.load_model()
+        print(f"RL Bot ready: {len(self.q_table)} states, {self.total_hands_played} hands")
+        
+        self.current_state_key = None
+        self.current_action = None
+        self.current_game_state = None
+        
+    def normalize_card(self, card: str) -> str:
+        """Keep card format as-is"""
+        return card
+        
+    def _parse_card(self, card: str) -> Tuple[str, str]:
+        """FIXED: Properly parse card into rank and suit"""
+        if len(card) < 2:
+            return "", ""
+            
+        if card.startswith('10'):
+            return '10', card[2:] if len(card) > 2 else ""
+        else:
+            return card[:-1], card[-1] if len(card) > 1 else ""
+        
+    def calculate_hand_strength(self, hero_cards: List[str], board: List[str] = None) -> float:
+        """Enhanced hand strength calculation"""
+        if len(hero_cards) != 2:
+            return 0.0
+            
+        board = board or []
+        
+        # Create cache key
+        cache_key = tuple(sorted(hero_cards + board))
+        if cache_key in self.hand_strength_cache:
+            return self.hand_strength_cache[cache_key]
+            
+        try:
+            card1 = self.normalize_card(hero_cards[0])
+            card2 = self.normalize_card(hero_cards[1])
+            
+            rank1, suit1 = self._parse_card(card1)
+            rank2, suit2 = self._parse_card(card2)
+            
+            if not rank1 or not rank2:
+                return 0.3
+            
+            val1 = self.card_ranks.get(rank1, 7)
+            val2 = self.card_ranks.get(rank2, 7)
+            
+            # Pre-flop hand strength
+            strength = self._calculate_preflop_strength(val1, val2, suit1, suit2)
+            
+            # Post-flop adjustments
+            if board:
+                strength = self._adjust_for_board(strength, hero_cards, board)
+                
+            # Cache result
+            final_strength = min(max(strength, 0.0), 1.0)
+            self.hand_strength_cache[cache_key] = final_strength
+            return final_strength
+            
+        except Exception as e:
+            print(f"Hand strength calculation error: {e}")
+            return 0.3
+    
+    def _calculate_preflop_strength(self, val1: int, val2: int, suit1: str, suit2: str) -> float:
+        """Calculate pre-flop hand strength with better scaling"""
+        high_val = max(val1, val2)
+        low_val = min(val1, val2)
+        
+        # Pocket pairs
+        if val1 == val2:
+            if val1 >= 10:  
+                return 0.8 + (val1 - 10) * 0.04  
+            else:  # Small pairs
+                return 0.5 + (val1 - 2) * 0.03   
+        
+        # High cards
+        base_strength = 0.15 + (high_val / 14) * 0.35 + (low_val / 14) * 0.15
+        
+        # Suited bonus
+        if suit1 == suit2:
+            base_strength += 0.08
+            
+        # Connected bonus
+        gap = abs(val1 - val2)
+        if gap == 1: 
+            base_strength += 0.06
+        elif gap == 2:  
+            base_strength += 0.03
+            
+        # Premium combinations
+        if {val1, val2} == {14, 13}:  # AK
+            base_strength += 0.2
+        elif high_val == 14 and low_val >= 10:  # AQ, AJ, AT
+            base_strength += 0.12
+        elif high_val == 13 and low_val >= 11:  # KQ, KJ
+            base_strength += 0.08
+            
+        return base_strength
+    
+    def _adjust_for_board(self, preflop_strength: float, hero_cards: List[str], board: List[str]) -> float:
+        """FIXED: Advanced board texture analysis - properly indented"""
+        if not board:
+            return preflop_strength
+            
+        try:
+            hero_ranks = []
+            hero_suits = []
+            for card in hero_cards:
+                rank, suit = self._parse_card(card)
+                hero_ranks.append(rank)
+                hero_suits.append(suit)
+            
+            board_ranks = []
+            board_suits = []
+            for card in board:
+                rank, suit = self._parse_card(card)
+                board_ranks.append(rank)
+                board_suits.append(suit)
+            
+            all_ranks = hero_ranks + board_ranks
+            all_suits = hero_suits + board_suits
+            
+            rank_counts = {}
+            for rank in all_ranks:
+                rank_counts[rank] = rank_counts.get(rank, 0) + 1
+            
+            suit_counts = {}
+            for suit in all_suits:
+                suit_counts[suit] = suit_counts.get(suit, 0) + 1
+            
+            #  hand strength calculation
+            strength = self._evaluate_made_hand(hero_ranks, hero_suits, board_ranks, board_suits, rank_counts)
+            
+            # Adjust for board threats
+            strength = self._adjust_for_threats(strength, hero_cards, board, suit_counts, board_ranks)
+            
+            return min(max(strength, 0.0), 1.0)
+            
+        except Exception as e:
+            print(f"Advanced board adjustment error: {e}")
+            return preflop_strength
+
+    def _evaluate_made_hand(self, hero_ranks, hero_suits, board_ranks, board_suits, rank_counts):
+        """FIXED: Evaluate the actual hand made - properly indented"""
+        
+        #flush
+        hero_flush_suits = []
+        for suit in set(hero_suits + board_suits):
+            suit_total = (hero_suits + board_suits).count(suit)
+            if suit_total >= 5:
+                hero_contributes = sum(1 for s in hero_suits if s == suit)
+                if hero_contributes > 0:
+                    hero_flush_suits.append(suit)
+        
+        if hero_flush_suits:
+            return 0.85  
+        
+        # straight
+        if self._has_straight(hero_ranks + board_ranks):
+            return 0.82  
+        
+        #full house
+        trips = [rank for rank in rank_counts if rank_counts[rank] >= 3]
+        pairs = [rank for rank in rank_counts if rank_counts[rank] >= 2]
+        
+        if trips and len(pairs) >= 2:  
+            return 0.9
+        
+        #trips/set
+        hero_trips = [rank for rank in hero_ranks if rank_counts[rank] >= 3]
+        if hero_trips:
+            return 0.85  
+        
+        #two pair
+        hero_pairs = [rank for rank in hero_ranks if rank_counts[rank] >= 2]
+        if len(hero_pairs) >= 2:
+            return 0.75  # Two pair adjusted down for threats
+        
+        #one pair
+        if len(hero_pairs) == 1:
+            pair_rank = hero_pairs[0]
+            pair_value = self.card_ranks.get(pair_rank, 0)
+            board_high = max([self.card_ranks.get(rank, 0) for rank in board_ranks]) if board_ranks else 0
+            
+            if pair_value > board_high:
+                return 0.7   # Overpair
+            elif pair_value == board_high:
+                return 0.6   # Top pair
+            else:
+                return 0.45  # Low pair
+        
+        # High card
+        hero_high = max([self.card_ranks.get(rank, 0) for rank in hero_ranks])
+        board_high = max([self.card_ranks.get(rank, 0) for rank in board_ranks]) if board_ranks else 0
+        
+        if hero_high > board_high:
+            return 0.3   # High card
+        else:
+            return 0.15  # Low card
+
+    def _adjust_for_threats(self, base_strength, hero_cards, board, suit_counts, board_ranks):
+        """FIXED: Reduce strength based on board threats - properly indented"""
+        
+        hero_suits = [self._parse_card(card)[1] for card in hero_cards]
+        threat_reduction = 0.0
+        
+        # FLUSH THREAT ANALYSIS
+        max_suit_count = max(suit_counts.values()) if suit_counts else 0
+        
+        if max_suit_count >= 4:  # 4+ of same suit 
+            #hero contributes to flush
+            hero_in_flush = False
+            for suit, count in suit_counts.items():
+                if count >= 4 and suit in hero_suits:
+                    hero_in_flush = True
+                    break
+            
+            if not hero_in_flush:
+                #Flush possible
+                if max_suit_count == 4:
+                    threat_reduction += 0.3   # 4-flush board
+                    print(f"4-flush threat detected: reducing strength by 0.3")
+                elif max_suit_count == 5:
+                    threat_reduction += 0.5   # 5-flush board 
+                    print(f"5-flush threat detected: reducing strength by 0.5")
+        
+        elif max_suit_count == 3:
+            # Flush possible
+            hero_in_draw = any(suit_counts.get(suit, 0) >= 3 for suit in hero_suits)
+            if not hero_in_draw:
+                threat_reduction += 0.1   
+        
+        # Stright analysis
+        if len(board_ranks) >= 3:
+            straight_threat = self._assess_straight_threats(board_ranks, hero_cards)
+            threat_reduction += straight_threat
+        
+        # pair and set anaylsis
+        board_pairs = len([rank for rank in set(board_ranks) if board_ranks.count(rank) >= 2])
+        if board_pairs >= 1:
+            # Paired board 
+            hero_ranks = [self._parse_card(card)[0] for card in hero_cards]
+            hero_uses_pair = any(rank in board_ranks for rank in hero_ranks)
+            if not hero_uses_pair:
+                threat_reduction += 0.15  
+        
+        adjusted_strength = base_strength - threat_reduction
+        
+       
+        if threat_reduction > 0.2:
+            print(f"BOARD THREAT: Base strength {base_strength:.1%} reduced by {threat_reduction:.1%} to {adjusted_strength:.1%}")
+            print(f"  Board: {board}")
+            print(f"  Hero: {hero_cards}")
+            print(f"  Suit counts: {suit_counts}")
+        
+        return max(adjusted_strength, 0.1) 
+
+    def _assess_straight_threats(self, board_ranks, hero_cards):
+        """FIXED: Assess straight threats on board - properly indented"""
+        threat = 0.0
+        
+        rank_values = []
+        for rank in board_ranks:
+            val = self.card_ranks.get(rank, 0)
+            rank_values.append(val)
+            if rank == 'A':  # Ace can be low
+                rank_values.append(1)
+        
+        rank_values.sort()
+
+        connected_count = 1
+        max_connected = 1
+        
+        for i in range(1, len(rank_values)):
+            if rank_values[i] == rank_values[i-1] + 1:
+                connected_count += 1
+                max_connected = max(max_connected, connected_count)
+            else:
+                connected_count = 1
+        
+        if max_connected >= 3:
+            # Check if hero helps complete straights
+            hero_ranks = [self._parse_card(card)[0] for card in hero_cards]
+            hero_helps_straight = False
+            
+            for hero_rank in hero_ranks:
+                hero_val = self.card_ranks.get(hero_rank, 0)
+                if any(abs(hero_val - rv) <= 2 for rv in rank_values):
+                    hero_helps_straight = True
+                    break
+            
+            if not hero_helps_straight:
+                if max_connected >= 4:
+                    threat += 0.2  # 4-straight threat
+                else:
+                    threat += 0.1  # 3-straight threat
+        
+        return threat
+
+    def _has_straight(self, all_ranks):
+        """FIXED: Check if 5+ cards make a straight - properly indented"""
+        if len(all_ranks) < 5:
+            return False
+        
+        values = set()
+        for rank in all_ranks:
+            val = self.card_ranks.get(rank, 0)
+            values.add(val)
+            if rank == 'A':  # Ace low
+                values.add(1)
+        
+        values = sorted(list(values))
+        
+        # Check for 5 consecutive values
+        consecutive = 1
+        for i in range(1, len(values)):
+            if values[i] == values[i-1] + 1:
+                consecutive += 1
+                if consecutive >= 5:
+                    return True
+            else:
+                consecutive = 1
+        
+        return False
+    
+    def get_state_key(self, game_state: Dict) -> str:
+        """Create state representation"""
+        hero_cards = game_state.get('hero_cards', [])
+        board = game_state.get('board', [])
+        players = game_state.get('players', {})
+        hero_info = players.get('Hero', {})
+        
+        position = hero_info.get('position', 'MP')
+        street = len(board)
+        
+        # Hand strength
+        hand_strength = self.calculate_hand_strength(hero_cards, board)
+        strength_bin = round(hand_strength * 10) / 10
+        
+        # Pot categorization
+        pot = game_state.get('pot', 0)
+        pot_category = self._categorize_pot(pot)
+        
+        # Opponent count
+        active_opponents = self._count_active_opponents(players)
+        
+        state_key = f"str:{strength_bin}_pos:{position}_st:{street}_pot:{pot_category}_opp:{active_opponents}"
+        
+        return state_key
+    
+    def _categorize_pot(self, pot) -> str:
+        """Categorize pot size"""
+        try:
+            pot_val = float(str(pot).replace(',', '').replace('N/A', '0'))
+            if pot_val <= 5:
+                return 'small'
+            elif pot_val <= 25:
+                return 'medium'
+            else:
+                return 'large'
+        except:
+            return 'small'
+    
+    def _count_active_opponents(self, players: Dict) -> int:
+        """Count active opponents"""
+        active = 0
+        for name, info in players.items():
+            if name != 'Hero' and info.get('bankroll', 'N/A') != 'N/A':
+                if info.get('action', '--') != 'Fold':
+                    active += 1
+        return min(active, 5)
+    
+    def get_q_values(self, state_key: str) -> Dict[str, float]:
+        """Get Q-values - FIXED initialization with proper poker strategy"""
+        if state_key not in self.q_table:
+            try:
+                strength = float(state_key.split('_')[0].split(':')[1])
+            except:
+                strength = 0.3
+                
+            if strength >= 0.7:  
+                self.q_table[state_key] = {
+                    'FOLD': -0.3, 
+                    'CALL': 0.2,   
+                    'RAISE': 0.5   
+                }
+            elif strength >= 0.5:  
+                self.q_table[state_key] = {
+                    'FOLD': 0.0,
+                    'CALL': 0.3,
+                    'RAISE': 0.1
+                }
+            else:  
+                self.q_table[state_key] = {
+                    'FOLD': 0.2,    
+                    'CALL': -0.1,  
+                    'RAISE': -0.3  
+                }
+            
+            self.state_visits[state_key] = 0
+            
+        return self.q_table[state_key].copy()
+    
+    def choose_action(self, game_state: Dict) -> Dict:
+        """Choose action with PROPER poker strategy"""
+        state_key = self.get_state_key(game_state)
+        q_values = self.get_q_values(state_key)
+        
+        self.state_visits[state_key] = self.state_visits.get(state_key, 0) + 1
+        
+        try:
+            hand_strength = float(state_key.split('_')[0].split(':')[1])
+        except:
+            hand_strength = 0.3
+        
+        # Adaptive epsilon
+        base_epsilon = max(self.min_epsilon, self.epsilon * (self.epsilon_decay ** self.total_hands_played))
+        state_familiarity = min(self.state_visits[state_key] / 10.0, 1.0)
+        current_epsilon = base_epsilon * (1 - state_familiarity * 0.3)
+        
+        if random.random() < current_epsilon:
+            if hand_strength >= 0.75: 
+                action_weights = [0.05, 0.35, 0.6]  # Rarely fold/often raise
+                print(f"Strong hand exploration: {hand_strength:.1%} -> favoring aggression")
+            elif hand_strength >= 0.6:  
+                action_weights = [0.15, 0.45, 0.4]  
+            elif hand_strength >= 0.4:   # Medium hands
+                action_weights = [0.3, 0.5, 0.2]   # Favor calling
+            elif hand_strength >= 0.25:  # Weak-medium hands
+                action_weights = [0.5, 0.4, 0.1]   
+            else:  # Very weak hands
+                action_weights = [0.7, 0.25, 0.05] 
+            
+            action = np.random.choice(['FOLD', 'CALL', 'RAISE'], p=action_weights)
+            exploration = True
+        else:
+            if hand_strength >= 0.7 and max(q_values, key=q_values.get) == 'FOLD':
+                print(f"Preventing fold of strong hand ({hand_strength:.1%})")
+                if q_values['RAISE'] >= q_values['CALL']:
+                    action = 'RAISE'
+                else:
+                    action = 'CALL'
+                exploration = False
+            else:
+                max_q = max(q_values.values())
+                best_actions = [a for a, v in q_values.items() if v == max_q]
+                action = random.choice(best_actions)
+                exploration = False
+        
+        self.current_state_key = state_key
+        self.current_action = action
+        self.current_game_state = game_state.copy()
+        
+        confidence = max(q_values.values()) if not exploration else 0.6
+        
+        return {
+            'best_action': action,
+            'confidence': max(confidence, 0.3),
+            'q_values': q_values,
+            'exploration': exploration,
+            'epsilon': current_epsilon,
+            'state_visits': self.state_visits.get(state_key, 0),
+            'hand_strength_used': hand_strength
+        }
+
+    
+    def solve(self, game_state: Dict) -> Dict:
+        """Main solve method with debugging for strong hands"""
+        hero_cards = game_state.get('hero_cards', [])
+        
+        if len(hero_cards) != 2:
+            return {
+                'best_action': 'WAIT',
+                'confidence': 0.0,
+                'hand_strength': 0.0,
+                'states_learned': len(self.q_table)
+            }
+        
+        decision = self.choose_action(game_state)
+        
+       
+        hand_strength = self.calculate_hand_strength(hero_cards, game_state.get('board', []))
+        
+        if hand_strength >= 0.7:
+            print(f"STRONG HAND DEBUG:")
+            print(f"  Cards: {hero_cards}, Board: {game_state.get('board', [])}")
+            print(f"  Hand Strength: {hand_strength:.1%}")
+            print(f"  Decision: {decision['best_action']}")
+            print(f"  Q-values: {decision['q_values']}")
+            print(f"  Exploration: {decision['exploration']}")
+        
+        return {
+            'best_action': decision['best_action'],
+            'confidence': decision['confidence'],
+            'hand_strength': hand_strength,
+            'ev': decision['confidence'] * 100,
+            'states_learned': len(self.q_table),
+            'exploration': decision['exploration'],
+            'q_values': decision['q_values']
+        }
+    
+    def save_model(self):
+        """Save model"""
+        model_data = {
+            'q_table': self.q_table,
+            'state_visits': self.state_visits,
+            'total_hands_played': self.total_hands_played,
+            'version': '3.1_corrected'
+        }
+        try:
+            with open('poker_rl_model.json', 'w') as f:
+                json.dump(model_data, f, indent=2)
+            print(f"Saved corrected RL model: {len(self.q_table)} states")
+        except Exception as e:
+            print(f"Error saving model: {e}")
+    
+    def load_model(self):
+        """Load model"""
+        try:
+            with open('poker_rl_model.json', 'r') as f:
+                model_data = json.load(f)
+            self.q_table = model_data.get('q_table', {})
+            self.state_visits = model_data.get('state_visits', {})
+            self.total_hands_played = model_data.get('total_hands_played', 0)
+            print(f"Loaded corrected model: {len(self.q_table)} states")
+        except FileNotFoundError:
+            print("No model found - starting fresh with corrected strategy")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+    
+    def end_session(self):
+        """End session"""
+        self.save_model()
+        print(f"Session ended: {self.total_hands_played} hands, {len(self.q_table)} states")
+
+if __name__ == "__main__":
+    print("Testing Corrected RL Bot...")
+    bot = PokerRLBot()
+    
+    test_state = {
+        'hero_cards': ['10♠', 'Q♥'],  
+        'board': ['10♦', 'Q♣', '2♠'],  
+        'pot': 25,
+        'players': {'Hero': {'position': 'BTN', 'bankroll': '200'}}
+    }
+    
+    print("\n=== Testing 10 Card Parsing and Strong Hand ===")
+    result = bot.solve(test_state)
+    print(f"Result: {result['best_action']} (strength: {result['hand_strength']:.1%})")
+    print("Should show strong hand strength and not fold!")
