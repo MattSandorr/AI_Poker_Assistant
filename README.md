@@ -1,4 +1,4 @@
-AI Poker Assistant
+AI Poker Assistant(H6)
 
 A personal project leveraging computer vision and reinforcement learning to analyze real-time poker gameplay and support strategic decision-making on ClubGG.
 
