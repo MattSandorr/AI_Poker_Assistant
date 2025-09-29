@@ -1,7 +1,18 @@
-# AI_Poker_Assistant
-An online poker assistant designed to analyze real-time gameplay and support strategy improvement on ClubGG.
-- Real-time Screen Reading: Uses EasyOCR to capture gameplay data, including cards, player actions, positions, and pot size. Configuration and region setup can be found in OCR.py and the accompanying config files.
-- Pixel-Based Detection: All data extraction is based on screen pixels, with configurable regions to adapt to different layouts or preferences.
-- Machine Learning Integration: Currently implementing ML techniques to provide actionable insights for optimal playmaking.
-This Project started for my own ambition to become a better poker player using my current gameplay on ClubGG with friends. It is not intended for malicious use(Cheating, Real Money Games), and no actual gambling is involved just for enjoyment.
+A personal project leveraging computer vision and reinforcement learning to analyze real-time poker gameplay and support strategic decision-making on ClubGG.
 
+Features
+Real-Time Screen Reading: Captures live game data—including cards, player actions, positions, and pot size—using EasyOCR and OpenCV. Configurable regions allow adaptation to different table layouts and screen resolutions.
+
+Reinforcement Learning Agent: Implements a Q-Learning agent with epsilon-greedy exploration, experience replay, and adaptive learning rates to optimize strategy through self-play.
+
+Multi-Threaded GUI Overlay: Built with Tkinter to deliver real-time recommendations while monitoring performance and ensuring responsive updates.
+
+Modular, Pixel-Based Detection: Designed for precision and flexibility, allowing the system to adapt to various screen setups and game environments.
+
+Tech Stack
+Languages: Python
+Libraries/Frameworks: EasyOCR, OpenCV, NumPy, Tkinter
+Techniques: Reinforcement Learning (Q-Learning), Machine Learning, Computer Vision
+
+Project Purpose
+: Developed as a personal tool to improve my poker skills in simulated ClubGG games with friends. This project is strictly educational and recreational; it does not involve real-money gambling or cheating.
