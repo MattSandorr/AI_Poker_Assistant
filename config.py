@@ -1,32 +1,32 @@
-# Screen region (X1, Y1, X2, Y2) for capturing the entire screen
-SCREEN_REGION = (0, 0, 852, 625)  # Full screen capture
+# Screen region
+SCREEN_REGION = (0, 0, 852, 625)  
 
 # Pot size area (total pot) region
-POT_REGION = (377, 230, 470, 255)  # Pot size area
+POT_REGION = (377, 230, 470, 255)  
 
-# Define separate regions for each board card
+#separate regions for each board card
 BOARD_CARD_1 = (266, 304, 327, 350)
 BOARD_CARD_2 = (333, 304, 392, 350)
 BOARD_CARD_3 = (396, 304, 457, 350)
 BOARD_CARD_4 = (463, 304, 522, 350)
 BOARD_CARD_5 = (531, 304, 588, 350)
 
-# Hero card Regions
+# Hero cards
 HERO_CARD_1 = (374, 469, 396, 499)
 HERO_CARD_2 = (419, 468, 439, 497)
 
-# Suit Hero card regions
+# Suit Hero card 
 SUIT_HERO_1 = (397, 472, 410, 484)
 SUIT_HERO_2 = (460, 478, 472, 494)
   
-# Suit detection regions for each board card
+# Suit detection regions for  board card
 SUIT_CARD_1 = (293, 269, 325, 280)
 SUIT_CARD_2 = (364, 269, 388, 280)
 SUIT_CARD_3 = (426, 269, 453, 280)
 SUIT_CARD_4 = (493, 269, 518, 280)
 SUIT_CARD_5 = (551, 269, 586, 280)
 
-#Bankroll for each of the 7 players
+#Bankroll 
 BANK_HERO= (371, 571, 476, 588)
 BANK_PLAYER_2= (125, 518, 212, 535)
 BANK_PLAYER_3= (45, 270, 130, 293)
@@ -35,7 +35,7 @@ BANK_PLAYER_5= (490, 155, 578, 176)
 BANK_PLAYER_6= (716, 271, 800, 292)
 BANK_PLAYER_7= (631, 516, 721, 537)
 
-#VPIP for each of the 7 players
+#VPIP 
 VPIP_HERO=(362, 517, 388, 539)
 VPIP_PLAYER_2=(120, 476, 140, 492)
 VPIP_PLAYER_3=(39, 230, 61, 248)
@@ -44,7 +44,7 @@ VPIP_PLAYER_5=(486, 114, 506, 132)
 VPIP_PLAYER_6=(713, 232, 735, 248)
 VPIP_PLAYER_7=(630, 474, 653, 494)
 
-#Dealer Position each of the 7 player
+#Dealer Position 
 POSITION_HERO=(471, 433, 487, 449)
 POSITION_PLAYER_2=(239, 428, 256, 445)
 POSITION_PLAYER_3=(110, 338, 125, 354)
@@ -53,7 +53,7 @@ POSITION_PLAYER_5=(593, 192, 609, 209)
 POSITION_PLAYER_6=(721, 338, 738 ,352 )
 POSITION_PLAYER_7=(592, 427, 608, 443)
 
-#The Bet size each player makes
+#The Bet 
 BET_AMOUNT_HERO=(397, 406, 450, 445)
 BET_AMOUNT_2=(220, 388, 264, 424)
 BET_AMOUNT_3=(149, 297, 198, 341)
