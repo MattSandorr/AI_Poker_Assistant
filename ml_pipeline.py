@@ -359,8 +359,9 @@ if __name__ == "__main__":
     
     result = clean_game_state(test_json)
     if result:
-        print("Cleaning successful!")
+        print(" success!")
         print(json.dumps(result, indent=2, ensure_ascii=False))
         print(f"Summary: {get_game_state_summary(result)}")
     else:
-        print("Cleaning failed!")
+        print(" failed")
+
