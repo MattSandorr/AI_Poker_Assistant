@@ -40,7 +40,7 @@ class OCR:
     def __init__(self, game_state: GameState):
         self.state = game_state
         
-        print("Initializing OCR reader...")
+        print("starting OCR reader")
         self.reader = easyocr.Reader(['en'], gpu=False, verbose=False)
         print("OCR reader ready")
 
@@ -89,7 +89,6 @@ class OCR:
         return "N/A"
 
     def _suit(self, region):
-        """Keep ORIGINAL working suit detection - don't change this"""
         rgb = np.mean(self._grab(region, color=True).reshape(-1, 3), axis=0)
         suit_rgb = {'♣': (27, 108, 27), '♥': (21, 82, 145), '♦': (162, 32, 33), '♠': (41, 43, 41)}
         dist = lambda a, b: np.sqrt(((np.array(a) - b) ** 2).sum())
@@ -341,7 +340,6 @@ class OCR:
                 ))
 
     def start(self):
-        """Keep ORIGINAL start method"""
         print("OCR started – press q to quit")
         self.refresh_all()
         while True:
@@ -353,5 +351,6 @@ class OCR:
             time.sleep(SCAN_DELAY)
 
 if __name__ == "__main__":
-    print("Testing Complete Fixed OCR...")
+    print("Testing OCR...")
     OCR(GameState()).start()
+
